@@ -49,7 +49,7 @@ mv_if_not_exists() {
 }
 
 echo "=== Installing required packages ==="
-for pkg in curl tar git bind bind-utils dhcp-server httpd haproxy nfs-utils; do
+for pkg in curl tar git bind bind-utils dhcp-server httpd haproxy nfs-utils net-tools vim; do
   install_pkg "$pkg"
 done
 
@@ -89,21 +89,14 @@ fi
 export OC_EDITOR="vim"
 export KUBE_EDITOR="vim"
 
-echo "=== Configuring ens224 static network settings ==="
-cfgfile="/etc/sysconfig/network-scripts/ifcfg-ens224"
-cat > "$cfgfile" <<EOF
-DEVICE=ens224
-BOOTPROTO=static
-ONBOOT=yes
-IPADDR=192.168.22.1
-NETMASK=255.255.255.0
-DNS1=127.0.0.1
-DOMAIN=ocp.lan
-DEFROUTE=no
-EOF
+echo "=== Configuring ens224 static network settings with nmcli ==="
+nmcli con mod ens224 ipv4.method manual \
+  ipv4.addresses 192.168.22.1/24 \
+  ipv4.dns 127.0.0.1 \
+  ipv4.dns-search ocp.lan \
+  connection.autoconnect yes
 
-nmcli connection reload
-nmcli connection up ens224 || true
+nmcli con up ens224 || echo "⚠️ Failed to bring up ens224 – check IP conflicts or logs"
 
 echo "=== Configuring Bind DNS ==="
 if ! cmp -s /root/ocp4-metal-install/dns/named.conf /etc/named.conf; then
@@ -124,7 +117,13 @@ enable_and_start named
 
 echo "=== Configuring LAN NIC ens192 for local DNS ==="
 nmcli con mod ens192 ipv4.ignore-auto-dns yes
+nmcli con mod ens192 ipv4.dns ""
 nmcli con mod ens192 ipv4.dns "127.0.0.1"
+nmcli con up ens192
+
+# Optional hard enforcement (if needed)
+echo "nameserver 127.0.0.1" > /etc/resolv.conf
+
 systemctl restart NetworkManager
 
 echo "=== Testing DNS resolution ==="
@@ -185,3 +184,4 @@ for svc in nfs-server rpcbind nfs-mountd; do
 done
 
 echo "=== Post-install setup completed successfully ==="
+

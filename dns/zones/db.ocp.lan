@@ -26,6 +26,12 @@ ocp-w-2.lab.ocp.lan.        IN      A      192.168.22.212
 api.lab.ocp.lan.        IN    A    192.168.22.1
 api-int.lab.ocp.lan.    IN    A    192.168.22.1
 *.apps.lab.ocp.lan.     IN    A    192.168.22.1
+ipa.lab.ocp.lan.        IN    A    192.168.22.100
+basestation.lab.ocp.lan. IN    A    192.168.22.101
+repo.lab.ocp.lan.       IN    A    192.168.22.102
+ceph-01.lab.ocp.lan.       IN    A    192.168.22.70
+ceph-02.lab.ocp.lan.       IN    A    192.168.22.71
+ceph-03.lab.ocp.lan.       IN    A    192.168.22.72
 
 ; ETCD Cluster
 etcd-0.lab.ocp.lan.    IN    A     192.168.22.201
@@ -39,3 +45,4 @@ _etcd-server-ssl._tcp.lab.ocp.lan.    86400     IN    SRV     0    10    2380   
 
 oauth-openshift.apps.lab.ocp.lan.     IN     A     192.168.22.1
 console-openshift-console.apps.lab.ocp.lan.     IN     A     192.168.22.1
+

@@ -11,6 +11,8 @@ $TTL    604800
 
 1      IN    PTR    ocp-svc.ocp.lan.
 1      IN    PTR    api.lab.ocp.lan.
+100    IN    PTR    ipa.lab.ocp.lan.
+102    IN    PTR    repo.lab.ocp.lan.
 1      IN    PTR    api-int.lab.ocp.lan.
 ;
 200    IN    PTR    ocp-bootstrap.lab.ocp.lan.
@@ -21,3 +23,6 @@ $TTL    604800
 ;
 211    IN    PTR    ocp-w-1.lab.ocp.lan.
 212    IN    PTR    ocp-w-2.lab.ocp.lan.
+70     IN    PTR    ceph-01.lab.ocp.lan.
+71     IN    PTR    ceph-02.lab.ocp.lan.
+72     IN    PTR    ceph-03.lab.ocp.lan.

@@ -1,4 +1,5 @@
 # Ensure SSH key exists (generate if missing)
+HOME="/root"
 SSH_KEY_FILE="$HOME/.ssh/id_rsa.pub"
 if [ ! -f "$SSH_KEY_FILE" ]; then
   echo "SSH key not found — generating a new RSA key pair..."

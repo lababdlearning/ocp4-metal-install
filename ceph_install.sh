@@ -136,7 +136,7 @@ for h in "${HOSTS[@]}"; do
       log "SSH key already present on $h_trim"
     else
       log "Copying SSH key to $h_trim using password"
-      run "sshpass -p '${SSH_PASS}' ssh-copy-id -f -i ${SSH_KEY} root@${h_trim}"
+      run "sshpass -p '${SSH_PASS}' ssh-copy-id -o StrictHostKeyChecking=no -f -i ${SSH_KEY} root@${h_trim}"
     fi
   else
     log "SSH key ${SSH_KEY} not found; skipping $h_trim"

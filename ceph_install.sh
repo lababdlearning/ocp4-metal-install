@@ -175,3 +175,13 @@ else
 fi
 
 log "Ceph bootstrap process complete."
+
+cp /cephadm /usr/local/bin/
+cephadm shell  -c /etc/ceph/ceph.conf -k /etc/ceph/ceph.client.admin.keyring -- ceph -s
+cephadm shell -- ceph orch host ls
+cephadm shell -- ceph orch host add ceph-02.lab.ocp.lan
+cephadm shell -- ceph orch host add ceph-02.lab.ocp.lan
+cephadm shell -- ceph orch host add ceph-03.lab.ocp.lan
+cephadm shell -- ceph orch apply osd --all-available-devices --method raw
+cephadm shell -- ceph osd ls
+cephadm shell -- ceph -s

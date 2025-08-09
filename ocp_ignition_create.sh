@@ -54,6 +54,8 @@ cp "$INSTALL_DIR/install-config.yaml" "$HOME/install-config.yaml.bak"
 echo "=== Creating OpenShift manifests and ignition configs ==="
 openshift-install create manifests --dir "$INSTALL_DIR"
 openshift-install create ignition-configs --dir "$INSTALL_DIR"
+curl   https://mirror.openshift.com/pub/openshift-v4/dependencies/rhcos/4.18/latest/rhcos-4.18.1-x86_64-metal.x86_64.raw.gz -o /var/www/html/ocp4/rhcos
+
 
 echo "=== Publishing installation files via Apache ==="
 mkdir -p "$HTTPD_DIR"

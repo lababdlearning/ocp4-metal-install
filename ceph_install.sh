@@ -164,7 +164,7 @@ cephadm shell -- ceph osd pool set ocs-fs-metadata pg_autoscale_mode on || true
 # Export external cluster details
 # -----------------------------
 echo "[*] Exporting external cluster details..."
-cephadm shell -- python3 /root/ocp4-metal-install/ceph-external-cluster-details-exporter.py \
+python3 /root/ocp4-metal-install/ceph-external-cluster-details-exporter.py \
   --rbd-data-pool-name ocs-block \
   --cephfs-filesystem-name ocs-fs \
   --cephfs-metadata-pool-name ocs-fs-metadata \

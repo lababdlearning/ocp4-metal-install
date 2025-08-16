@@ -54,7 +54,7 @@ subscription-manager repos --enable=rhel-9-for-x86_64-appstream-rpms || true
 # Install required packages
 # -----------------------------
 echo "[*] Installing required packages..."
-dnf install -y sshpass podman cephadm || true
+dnf install -y sshpass podman cephadm python3-rados python3-rbd ceph-common || true
 
 # -----------------------------
 # Podman login (idempotent check)
@@ -109,7 +109,70 @@ echo "[*] Applying OSDs to all available devices..."
 cephadm shell -- ceph orch apply osd --all-available-devices || true
 
 # -----------------------------
+# Pause before continuing
+# -----------------------------
+echo "[*] Waiting for 2 minutes before proceeding..."
+sleep 120
+
+# -----------------------------
+# Configure MDS services
+# -----------------------------
+echo "[*] Configuring CephFS MDS services..."
+cephadm shell -- ceph orch host label add ceph-01.lab.ocp.lan mds || true
+cephadm shell -- ceph orch host label add ceph-02.lab.ocp.lan mds || true
+cephadm shell -- ceph orch host label add ceph-03.lab.ocp.lan mds || true
+cephadm shell -- ceph orch apply mds ocs-fs --placement="label:mds count:2" || true
+
+# -----------------------------
+# Create RBD pool (ocs-block)
+# -----------------------------
+if ! cephadm shell -- ceph osd pool ls | grep -q "ocs-block"; then
+  echo "[*] Creating RBD pool ocs-block..."
+  cephadm shell -- ceph osd pool create ocs-block 64
+  cephadm shell -- ceph osd pool application enable ocs-block rbd
+  cephadm shell -- rbd pool init ocs-block
+  cephadm shell -- ceph osd pool set ocs-block size 3
+  cephadm shell -- ceph osd pool set ocs-block min_size 2
+  cephadm shell -- ceph osd pool set ocs-block compression_algorithm lz4
+  cephadm shell -- ceph osd pool set ocs-block compression_mode aggressive
+fi
+
+# -----------------------------
+# Create CephFS pools
+# -----------------------------
+if ! cephadm shell -- ceph fs ls | grep -q "ocs-fs"; then
+  echo "[*] Creating CephFS pools..."
+  cephadm shell -- ceph osd pool create ocs-fs-data 64
+  cephadm shell -- ceph osd pool create ocs-fs-metadata 32
+  cephadm shell -- ceph osd pool application enable ocs-fs-data cephfs
+  cephadm shell -- ceph osd pool application enable ocs-fs-metadata cephfs
+  cephadm shell -- ceph osd pool set ocs-fs-data size 3
+  cephadm shell -- ceph osd pool set ocs-fs-metadata size 3
+  cephadm shell -- ceph fs new ocs-fs ocs-fs-metadata ocs-fs-data
+fi
+
+# -----------------------------
+# Enable PG autoscaler
+# -----------------------------
+echo "[*] Enabling PG autoscaler..."
+cephadm shell -- ceph mgr module enable pg_autoscaler || true
+cephadm shell -- ceph osd pool set ocs-block pg_autoscale_mode on || true
+cephadm shell -- ceph osd pool set ocs-fs-data pg_autoscale_mode on || true
+cephadm shell -- ceph osd pool set ocs-fs-metadata pg_autoscale_mode on || true
+
+# -----------------------------
+# Export external cluster details
+# -----------------------------
+echo "[*] Exporting external cluster details..."
+cephadm shell -- python3 /root/ocp4-metal-install/ceph-external-cluster-details-exporter.py \
+  --rbd-data-pool-name ocs-block \
+  --cephfs-filesystem-name ocs-fs \
+  --cephfs-metadata-pool-name ocs-fs-metadata \
+  --cephfs-data-pool-name ocs-fs-data \
+  --output /root/external-cluster-details.json
+
+# -----------------------------
 # Show cluster status
 # -----------------------------
 cephadm shell -- ceph -s
-echo "[*] Ceph installation completed successfully."
+echo "[*] Ceph installation & configuration completed successfully."

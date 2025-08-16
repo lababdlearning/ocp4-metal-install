@@ -1,78 +1,115 @@
-#!/usr/bin/env bash
-# ceph-idempotent-bootstrap.sh
-# Idempotent Ceph cluster bootstrap script with sshpass-based key copy for first login.
-# Usage:
-#   ./ceph-idempotent-bootstrap.sh \
-#     --release 17.2.9 \
-#     --mon-ip 192.168.22.70 \
-#     --cluster-network 192.168.22.0/24 \
-#     --hosts ceph-02.lab.ocp.lan,ceph-03.lab.ocp.lan
+#!/bin/bash
+set -euo pipefail
 
-set -o pipefail
-
-DRY_RUN=0
-CEPH_RELEASE="17.2.9"
+# -----------------------------
+# Default values
+# -----------------------------
 MON_IP=""
-CLUSTER_NETWORK=""
-HOSTS_CSV=""
-SSH_KEY="/etc/ceph/ceph.pub"
-ADMIN_KEYRING="/etc/ceph/ceph.client.admin.keyring"
-CEPH_CONF="/etc/ceph/ceph.conf"
-SSH_PASS="Redhat@123"   # Default first-time password
+CLUSTER_NET=""
+HOSTS=""
+RELEASE=""
 
-log() { echo "$(date '+%F %T') - $*"; }
-err() { echo "$(date '+%F %T') - ERROR - $*" >&2; }
-run() {
-  if [ "$DRY_RUN" -eq 1 ]; then
-    log "[dry-run] $*"
-  else
-    log "RUN: $*"
-    eval "$@"
-  fi
-}
-command_exists() { command -v "$1" >/dev/null 2>&1; }
-
-usage() {
-  cat <<EOF
-Usage: $0 [--dry-run] [--release <ceph-release>] [--mon-ip <mon-ip>]
-          [--cluster-network <cidr>] --hosts host1,host2
-Options:
-  --dry-run               Print actions without executing
-  --release <version>     Ceph release (default: ${CEPH_RELEASE})
-  --mon-ip <ip>           Monitor IP (required for bootstrap if no cluster exists)
-  --cluster-network <cidr> Cluster network (e.g. 192.168.22.0/24)
-  --hosts host1,host2     Comma separated list of hosts to add
-EOF
-  exit 1
-}
-
-# Parse args
-while [ $# -gt 0 ]; do
+# -----------------------------
+# Argument parsing
+# -----------------------------
+while [[ $# -gt 0 ]]; do
   case "$1" in
-    --dry-run) DRY_RUN=1; shift;;
-    --release) CEPH_RELEASE="$2"; shift 2;;
-    --mon-ip) MON_IP="$2"; shift 2;;
-    --cluster-network) CLUSTER_NETWORK="$2"; shift 2;;
-    --hosts) HOSTS_CSV="$2"; shift 2;;
-    -h|--help) usage ;;
-    *) err "Unknown arg $1"; usage ;;
+    --mon-ip)
+      MON_IP="$2"
+      shift 2
+      ;;
+    --cluster-network)
+      CLUSTER_NET="$2"
+      shift 2
+      ;;
+    --hosts)
+      HOSTS="$2"
+      shift 2
+      ;;
+    --release)
+      RELEASE="$2"   # accepted but ignored
+      shift 2
+      ;;
+    *)
+      echo "Unknown option: $1"
+      exit 1
+      ;;
   esac
 done
 
-if [ -z "$HOSTS_CSV" ]; then
-  err "Missing --hosts"
-  usage
-fi
-if [ "$(id -u)" -ne 0 ]; then
-  err "Run as root or with sudo."
-  exit 2
+if [[ -z "$MON_IP" || -z "$CLUSTER_NET" ]]; then
+  echo "Usage: $0 --mon-ip <ip> --cluster-network <subnet> --hosts <comma-separated-hosts> [--release <ver>]"
+  exit 1
 fi
 
-log "Starting Ceph setup (release ${CEPH_RELEASE})"
+# -----------------------------
+# Enable repos if not already enabled
+# -----------------------------
+echo "[*] Enabling required repos..."
+subscription-manager repos --enable=rhceph-5-tools-for-rhel-9-x86_64-rpms || true
+subscription-manager repos --enable=rhel-9-for-x86_64-baseos-rpms || true
+subscription-manager repos --enable=rhel-9-for-x86_64-appstream-rpms || true
 
-# 1) cephadm binary
-subscription-manager repos --enable=rhceph-5-tools-for-rhel-9-x86_64-rpms
-subscription-manager repos --enable=rhel-9-for-x86_64-baseos-rpms
-subscription-manager repos --enable=rhel-9-for-x86_64-appstream-rpms
-podman login registry.redhat.io -h
-podman login --username rhwala --password 'VMware1!@VoisPune'
+# -----------------------------
+# Install required packages
+# -----------------------------
+echo "[*] Installing required packages..."
+dnf install -y sshpass podman cephadm || true
+
+# -----------------------------
+# Podman login (idempotent check)
+# -----------------------------
+if ! podman login registry.redhat.io --get-login &>/dev/null; then
+  echo "[*] Logging in to registry.redhat.io..."
+  podman login registry.redhat.io --username rhwala --password 'VMware1!@VoisPune'
+else
+  echo "[*] Already logged in to registry.redhat.io"
+fi
+
+# -----------------------------
+# Bootstrap Ceph cluster if not already done
+# -----------------------------
+if [[ ! -f /etc/ceph/ceph.conf ]]; then
+  echo "[*] Bootstrapping new Ceph cluster..."
+  cephadm bootstrap \
+    --mon-ip "$MON_IP" \
+    --cluster-network "$CLUSTER_NET" \
+    --allow-fqdn-hostname \
+    --registry-json /root/ocp4-metal-install/registry.json
+else
+  echo "[*] Ceph cluster already bootstrapped"
+fi
+
+# -----------------------------
+# Setup SSH keys for hosts
+# -----------------------------
+if [[ -f /etc/ceph/ceph.pub ]]; then
+  for host in $(echo "$HOSTS" | tr ',' ' '); do
+    echo "[*] Copying SSH key to $host..."
+    sshpass -p 'Redhat@123' ssh-copy-id -o StrictHostKeyChecking=no -f -i /etc/ceph/ceph.pub root@"$host" || true
+  done
+fi
+
+# -----------------------------
+# Add hosts to Ceph orchestrator
+# -----------------------------
+for host in $(echo "$HOSTS" | tr ',' ' '); do
+  if ! cephadm shell -- ceph orch host ls | grep -q "$host"; then
+    echo "[*] Adding host $host to Ceph cluster..."
+    cephadm shell -- ceph orch host add "$host"
+  else
+    echo "[*] Host $host already in cluster"
+  fi
+done
+
+# -----------------------------
+# Apply OSDs
+# -----------------------------
+echo "[*] Applying OSDs to all available devices..."
+cephadm shell -- ceph orch apply osd --all-available-devices || true
+
+# -----------------------------
+# Show cluster status
+# -----------------------------
+cephadm shell -- ceph -s
+echo "[*] Ceph installation completed successfully."

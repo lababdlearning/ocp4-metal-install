@@ -41,6 +41,12 @@ if [[ -z "$MON_IP" || -z "$CLUSTER_NET" ]]; then
   echo "Usage: $0 --mon-ip <ip> --cluster-network <subnet> --hosts <comma-separated-hosts> [--release <ver>]"
   exit 1
 fi
+# -----------------------------
+# Pause before continuing
+# -----------------------------
+echo "[*] Waiting for 1 minutes before proceeding..."
+sleep 60
+
 
 # -----------------------------
 # Enable repos if not already enabled
@@ -111,8 +117,8 @@ cephadm shell -- ceph orch apply osd --all-available-devices || true
 # -----------------------------
 # Pause before continuing
 # -----------------------------
-echo "[*] Waiting for 2 minutes before proceeding..."
-sleep 120
+echo "[*] Waiting for 1 minutes before proceeding..."
+sleep 60
 
 # -----------------------------
 # Configure MDS services

@@ -1,13 +1,13 @@
 #!/bin/bash
 set -euo pipefail
-
+#ceph_install.sh --release 17.2.9 --mon-ip 192.168.22.70 --cluster-network 192.168.22.0/24 --hosts ceph-02.lab.ocp.lan,ceph-03.lab.ocp.lan
 # -----------------------------
 # Default values
 # -----------------------------
-MON_IP=""
-CLUSTER_NET=""
-HOSTS=""
-RELEASE=""
+MON_IP="192.168.22.70"
+CLUSTER_NET="192.168.22.0/24"
+HOSTS="ceph-02.lab.ocp.lan,ceph-03.lab.ocp.lan"
+RELEASE="5.3"
 
 # -----------------------------
 # Argument parsing

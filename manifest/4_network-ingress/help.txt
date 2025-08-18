@@ -1,0 +1,45 @@
+oc new-project network-ingress
+
+oc create -f todo-app-v1.yaml
+
+oc status
+
+oc get all
+
+oc expose svc todo-http --hostname  todo-http.apps.lab.ocp.lan
+
+oc create route edge todo-https --service todo-http --hostname todo-https.apps.lab.ocp.lan
+
+curl -I -v https://todo-https.apps.lab.ocp.lan
+
+oc debug -t deployment/todo-http --image registry.access.redhat.com/ubi8/ubi:8.4
+
+	curl -v 172.30.102.29
+	exit
+
+oc delete route todo-https
+
+
+openssl req -new -key training.key -out training.csr -subj "/C=IN/ST=Gujarat/L=Junagadh/O=GV Bhuva/CN=todo-https.apps.lab.ocp.lan"
+
+openssl x509 -req -in training.csr -passin file:passphrase.txt -CA training-CA.pem -CAkey training-CA.key -CAcreateserial -out training.crt -days 1825 -sha256 -extfile training.ext
+
+oc create secret tls todo-certs --cert certs/training.crt --key certs/training.key
+
+oc create -f todo-app-v2.yaml
+
+oc set volumes deployment/todo-https
+
+oc create route passthrough todo-https --service todo-https --port 8443 --hostname todo-https.apps.lab.ocp.lan
+
+curl -vv -I --cacert certs/training-CA.pem https://todo-https.apps.lab.ocp.lan
+
+oc get svc todo-https
+
+oc debug -t deployment/todo-http --image registry.access.redhat.com/ubi8/ubi:8.4
+
+	curl http://172.30.68.82
+	curl -s -k https://172.30.68.82:8443 | head -n5
+
+oc delete project network-ingress
+

@@ -1,0 +1,29 @@
+oc edit configs.imageregistry.operator.openshift.io
+
+#change below lines
+.
+managementState: Managed
+.
+.
+storage:
+  pvc:
+    claim: registry-cephfs-pvc
+#    claim: # leave the claim blank
+# then create cephfs based pvc which will auto create pv 
+
+oc apply -f pvc_defination.yaml
+#pod rollout with new config 
+oc get pods -n openshift-image-registry -w
+
+oc new-app https://github.com/krnetworktraining1/openshifts2i.git --name=demo-app
+oc new-app https://github.com/lababdlearning/demoapp.git --name=mydockerapp
+# change code and rollout
+oc start-build mydockerapp --follow
+
+
+
+
+
+
+
+
